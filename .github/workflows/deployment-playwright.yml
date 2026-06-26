@@ -1,0 +1,67 @@
+name: Deployment Playwright Tests
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: Test suite to run
+        required: true
+        default: checkout
+        type: choice
+        options:
+          - checkout
+          - smoke
+          - full
+
+jobs:
+  deployment-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CI: true
+      TEST_ENV: production
+      TEST_SUITE: ${{ github.event.inputs.test_suite || 'checkout' }}
+      PRODUCTION_BASE_URL: ${{ secrets.PRODUCTION_BASE_URL }}
+      WEBSITE_ACCESS_PASSWORD: ${{ secrets.WEBSITE_ACCESS_PASSWORD }}
+      PRODUCTION_CUSTOMER_EMAIL: ${{ secrets.PRODUCTION_CUSTOMER_EMAIL }}
+      PRODUCTION_CUSTOMER_PASSWORD: ${{ secrets.PRODUCTION_CUSTOMER_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Run automation
+        shell: cmd
+        run: call run.bat
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-test-dashboard
+          path: reports/dashboard/
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-test-results
+          path: test-results/
+          retention-days: 14
