@@ -22,8 +22,8 @@ jobs:
     env:
       CI: true
       TEST_ENV: production
-      TEST_SUITE: ${{ github.event.inputs.test_suite || 'checkout' }}
-      PRODUCTION_BASE_URL: ${{ secrets.PRODUCTION_BASE_URL }}
+      TEST_SUITE: ${{ inputs.test_suite || 'checkout' }}
+      PRODUCTION_BASE_URL: ${{ secrets.PRODUCTION_BASE_URL || 'https://www.swagify.com/' }}
       WEBSITE_ACCESS_PASSWORD: ${{ secrets.WEBSITE_ACCESS_PASSWORD }}
       PRODUCTION_CUSTOMER_EMAIL: ${{ secrets.PRODUCTION_CUSTOMER_EMAIL }}
       PRODUCTION_CUSTOMER_PASSWORD: ${{ secrets.PRODUCTION_CUSTOMER_PASSWORD }}
