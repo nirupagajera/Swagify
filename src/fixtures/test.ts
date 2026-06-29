@@ -20,10 +20,6 @@ export const test = base.extend<SwagifyFixtures>({
   cleanSession: [async ({ context, page }, use) => {
     await context.clearCookies();
     await context.clearPermissions();
-    await context.addInitScript(() => {
-      window.localStorage.clear();
-      window.sessionStorage.clear();
-    });
 
     await use();
 

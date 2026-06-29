@@ -284,6 +284,7 @@ export class CheckoutPage extends BasePage {
     }
 
     await this.ensureCheckboxChecked(agreeCheckbox);
+    await expect(this.page.getByText(/please agree terms and conditions/i)).toBeHidden({ timeout: 2000 });
   }
 
   private async firstVisibleCheckoutLocator(locators: Locator[], timeout = 2_000): Promise<Locator | undefined> {
@@ -368,17 +369,21 @@ export class CheckoutPage extends BasePage {
   }
 
   private async ensureCheckboxChecked(checkbox: Locator): Promise<void> {
-    await checkbox.evaluate((element) => {
-      if (element instanceof HTMLInputElement) {
-        if (element.checked) {
-          return;
-        }
+    await checkbox.scrollIntoViewIfNeeded();
 
-        element.checked = true;
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
+    const checkedWithPlaywright = await checkbox
+      .check({ force: true })
+      .then(() => true)
+      .catch(() => false);
+
+    if (checkedWithPlaywright) {
+      return;
+    }
+
+    const isChecked = await checkbox.isChecked().catch(() => false);
+    if (!isChecked) {
+      await checkbox.click({ force: true });
+    }
   }
 
   private firstNameInput() {

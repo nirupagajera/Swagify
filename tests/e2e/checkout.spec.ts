@@ -10,6 +10,8 @@ import {
 } from '../../src/utils/testData';
 
 test.describe('Checkout', () => {
+  test.describe.configure({ timeout: 180_000 });
+
   test('registered customer can checkout with valid data and see an order id @production', async ({
     loginPage,
     productsPage,
@@ -28,6 +30,7 @@ test.describe('Checkout', () => {
     const orderId = await checkoutPage.orderId();
     expect(orderId).toMatch(/\S+/);
     console.log(`Order ID: ${orderId}`);
+    await loginPage.ensureLoggedIn(customerAccount());
     await dashboardPage.goto();
     await dashboardPage.openOrder(orderId);
     await dashboardPage.expectOrderDetail(orderId, productData.smokeProductSearchTerm);

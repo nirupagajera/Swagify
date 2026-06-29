@@ -33,6 +33,15 @@ export class LoginPage extends BasePage {
     }
   }
 
+  async ensureLoggedIn(account: TestAccount): Promise<void> {
+    await this.goto();
+
+    const emailInput = this.emailInput();
+    if (await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await this.login(account);
+    }
+  }
+
   async expectSignedIn(): Promise<void> {
     await expect(
       this.byTestId('account-status-label')

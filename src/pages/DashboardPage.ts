@@ -8,6 +8,7 @@ export class DashboardPage extends BasePage {
 
   async goto(): Promise<void> {
     await super.goto('/home');
+    await expect(this.page.getByText(/unauthorized/i)).toBeHidden({ timeout: 5000 });
   }
 
   async openOrder(orderId: string): Promise<void> {
