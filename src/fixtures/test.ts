@@ -13,9 +13,27 @@ type SwagifyFixtures = {
   checkoutPage: CheckoutPage;
   dashboardPage: DashboardPage;
   envConfig: ReturnType<typeof getEnvironmentConfig>;
+  cleanSession: void;
 };
 
 export const test = base.extend<SwagifyFixtures>({
+  cleanSession: [async ({ context, page }, use) => {
+    await context.clearCookies();
+    await context.clearPermissions();
+    await context.addInitScript(() => {
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+    });
+
+    await use();
+
+    await context.clearCookies();
+    await context.clearPermissions();
+    await page.evaluate(() => {
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+    }).catch(() => undefined);
+  }, { auto: true }],
   loginPage: async ({ page }, use) => {
     await use(new LoginPage(page));
   },
