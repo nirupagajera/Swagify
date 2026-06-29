@@ -1,4 +1,5 @@
 name: Playwright Tests
+run: xvfb-run npm run test:production
 
 on:
   push:
