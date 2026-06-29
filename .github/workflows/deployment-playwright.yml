@@ -54,6 +54,16 @@ jobs:
             echo PRODUCTION_BASE_URL is configured.
           )
 
+      - name: Show selected configuration
+        shell: cmd
+        run: |
+          echo TEST_SUITE=%TEST_SUITE%
+          if "%PRODUCTION_BASE_URL%"=="" (
+            echo PRODUCTION_BASE_URL is empty. Tests will use the default production URL from src/config/environments.ts.
+          ) else (
+            echo PRODUCTION_BASE_URL is configured.
+          )
+
       - name: Run automation
         shell: cmd
         run: call run.bat

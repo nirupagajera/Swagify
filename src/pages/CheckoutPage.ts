@@ -47,8 +47,8 @@ export class CheckoutPage extends BasePage {
   }
 
   async completeCheckoutOptions(): Promise<void> {
-    await this.completeGuestCheckoutSectionIfVisible();
     await this.selectNoPaymentRequiredIfVisible();
+    await this.completeGuestCheckoutSectionIfVisible();
     await this.acceptTermsIfVisible();
   }
 
@@ -59,6 +59,23 @@ export class CheckoutPage extends BasePage {
     await expect(placeOrderButton).toBeVisible({ timeout: 10000 });
     await expect(placeOrderButton).toBeEnabled({ timeout: 10000 });
     await placeOrderButton.click();
+  }
+
+  async orderTotal(): Promise<number> {
+    const totalLocator = await this.firstVisibleCheckoutLocator([
+      this.byTestId('checkout-total'),
+      this.byTestId('order-total'),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Order Total") and contains(normalize-space(), "$")]').last(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Order Total")]/following::*[contains(normalize-space(), "$")][1]').first()
+    ], 5_000);
+
+    if (!totalLocator) {
+      throw new Error('Unable to find checkout order total');
+    }
+
+    await expect(totalLocator).toBeVisible({ timeout: 10000 });
+
+    return this.parseCurrencyValue(await totalLocator.innerText());
   }
 
   async expectOrderConfirmation(): Promise<void> {
@@ -174,40 +191,34 @@ export class CheckoutPage extends BasePage {
   }
 
   private async enableGuestCheckoutIfVisible(): Promise<void> {
-    const guestChoice = await this.firstVisibleCheckoutLocator([
-      this.byTestId('guest-checkout-option'),
-      this.page.getByRole('checkbox', { name: /guest/i }).first(),
-      this.page.getByRole('radio', { name: /guest/i }).first(),
-      this.page.getByRole('button', { name: /guest|checkout as guest|guest user/i }).first(),
-      this.page.getByRole('link', { name: /guest|checkout as guest|guest user/i }).first(),
-      this.page.locator('xpath=//*[self::h6 or self::h2 or self::h3][contains(., "Create an Account")]/following::input[@type="checkbox"][1]'),
-      this.page.locator('form').filter({ hasText: /checkout as a guest user/i }).getByRole('checkbox').first()
-    ]);
+    const guestToggleLabel = this.page.getByText(/checkout as a guest user/i).first();
 
-    if (guestChoice) {
-      await this.enableGuestChoice(guestChoice);
-    } else {
-      await this.clickGuestToggleByLabel();
+    if (!(await guestToggleLabel.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      return;
     }
+
+    if (await this.guestCheckoutIsEnabled()) {
+      return;
+    }
+
+    await this.clickGuestToggleByLabel();
+    await expect(this.guestEmailInput()).toBeVisible({ timeout: 10000 });
   }
 
-  private async enableGuestChoice(guestChoice: Locator): Promise<void> {
-    const isCheckable = await guestChoice
-      .evaluate((element) => element instanceof HTMLInputElement && /checkbox|radio/i.test(element.type))
-      .catch(() => false);
-
-    if (isCheckable) {
-      await guestChoice.evaluate((element) => {
-        const input = element as HTMLInputElement;
-        if (!input.checked) {
-          input.checked = true;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-    } else {
-      await guestChoice.click({ force: true });
+  private async guestCheckoutIsEnabled(): Promise<boolean> {
+    if (await this.guestPasswordInput().isVisible({ timeout: 500 }).catch(() => false)) {
+      return false;
     }
+
+    if (await this.guestEmailInput().isVisible({ timeout: 500 }).catch(() => false)) {
+      return true;
+    }
+
+    const guestToggleInput = this.guestToggleInput();
+
+    return guestToggleInput
+      .evaluate((element) => element instanceof HTMLInputElement && element.checked)
+      .catch(() => false);
   }
 
   private async clickGuestToggleByLabel(): Promise<void> {
@@ -217,17 +228,31 @@ export class CheckoutPage extends BasePage {
       return;
     }
 
-    const inputNearLabel = this.page
-      .locator('xpath=//*[contains(normalize-space(), "Checkout as a Guest User")]/preceding::input[@type="checkbox"][1]')
+    const exactGuestSwitch = this.page.locator('xpath=//*[@id="card_section"]/div[7]/div/label/span').first();
+
+    if (await exactGuestSwitch.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await exactGuestSwitch.click({ force: true });
+      return;
+    }
+
+    const guestOptionRow = this.page
+      .locator('xpath=//*[contains(normalize-space(), "Checkout as a Guest User")]/ancestor::*[self::label or self::div][contains(normalize-space(), "Checkout as a Guest User")][1]')
       .first();
 
-    if ((await inputNearLabel.count()) > 0) {
-      await inputNearLabel.evaluate((element) => {
-        const input = element as HTMLInputElement;
-        input.checked = true;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      });
+    if (await guestOptionRow.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      const box = await guestOptionRow.boundingBox();
+      if (box) {
+        await this.page.mouse.click(box.x + 35, box.y + box.height / 2);
+        return;
+      }
+    }
+
+    const visibleSwitch = this.page
+      .locator('xpath=//*[contains(normalize-space(), "Checkout as a Guest User")]/preceding::*[@role="switch" or @role="checkbox" or self::button][1]')
+      .first();
+
+    if (await visibleSwitch.isVisible({ timeout: 500 }).catch(() => false)) {
+      await visibleSwitch.click({ force: true });
       return;
     }
 
@@ -238,13 +263,7 @@ export class CheckoutPage extends BasePage {
   }
 
   private async fillGuestEmailIfVisible(): Promise<void> {
-    const emailInput = await this.firstVisibleCheckoutLocator([
-      this.byTestId('guest-email-input'),
-      this.byTestId('checkout-email-input'),
-      this.page.getByRole('textbox', { name: /email/i }).first(),
-      this.page.getByPlaceholder(/email/i).first(),
-      this.page.locator('input[type="email"]').first()
-    ], 3_000);
+    const emailInput = await this.firstVisibleCheckoutLocator([this.guestEmailInput()], 3_000);
 
     if (emailInput) {
       await emailInput.fill(CheckoutPage.guestEmail);
@@ -255,7 +274,9 @@ export class CheckoutPage extends BasePage {
   private async acceptGuestAgreementIfVisible(): Promise<void> {
     const agreeCheckbox = await this.firstVisibleCheckoutLocator([
       this.byTestId('guest-agree-checkbox'),
-      this.page.getByRole('checkbox', { name: /agree|terms|condition|create account/i }).first()
+      this.byTestId('terms-and-conditions-checkbox'),
+      this.page.getByRole('checkbox', { name: /agree|terms|condition|create account/i }).first(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Terms of Service")]/preceding::input[@type="checkbox"][1]').first()
     ]);
 
     if (!agreeCheckbox) {
@@ -273,6 +294,43 @@ export class CheckoutPage extends BasePage {
     }
 
     return undefined;
+  }
+
+  private guestEmailInput(): Locator {
+    return this.byTestId('guest-email-input')
+      .or(this.byTestId('checkout-email-input'))
+      .or(this.page.locator('xpath=//*[contains(normalize-space(), "EMAIL ADDRESS")]/following::input[1]').first())
+      .or(this.page.getByRole('textbox', { name: /email/i }).first())
+      .or(this.page.getByPlaceholder(/email/i).first())
+      .or(this.page.locator('input[type="email"]').first())
+      .first();
+  }
+
+  private guestPasswordInput(): Locator {
+    return this.page
+      .locator('xpath=//*[contains(normalize-space(), "PASSWORD") or contains(normalize-space(), "Password")]/following::input[@type="password"][1]')
+      .or(this.page.getByLabel(/^password$/i))
+      .or(this.page.getByPlaceholder(/^password$/i))
+      .first();
+  }
+
+  private guestToggleInput(): Locator {
+    return this.byTestId('guest-checkout-option')
+      .or(
+        this.page
+          .locator('label')
+          .filter({ hasText: /checkout as a guest user/i })
+          .locator('input[type="checkbox"], input[type="radio"]')
+          .first()
+      )
+      .or(
+        this.page
+          .locator('xpath=//*[contains(normalize-space(), "Checkout as a Guest User")]/preceding::input[@type="checkbox" or @type="radio"][1]')
+          .first()
+      )
+      .or(this.page.getByRole('checkbox', { name: /guest/i }).first())
+      .or(this.page.getByRole('radio', { name: /guest/i }).first())
+      .first();
   }
 
   private async selectNoPaymentRequiredIfVisible(): Promise<void> {
@@ -383,6 +441,17 @@ export class CheckoutPage extends BasePage {
     const label = (await option.innerText()).trim();
 
     await select.selectOption(value ? { value } : { label });
+  }
+
+  private parseCurrencyValue(text: string): number {
+    const currencyMatch = text.match(/\border\s+total\b\s*:?\s*\$?\s*([0-9,]+(?:\.[0-9]{2})?)/i)
+      ?? text.match(/\$?\s*([0-9,]+(?:\.[0-9]{2})?)/);
+
+    if (!currencyMatch) {
+      throw new Error(`Unable to parse checkout total from text: "${text}"`);
+    }
+
+    return Number(currencyMatch[1].replace(/,/g, ''));
   }
 
   private placeOrderButton() {

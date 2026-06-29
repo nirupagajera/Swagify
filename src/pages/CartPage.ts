@@ -14,8 +14,9 @@ export class CartPage extends BasePage {
     await expect(cartItem).toBeVisible();
   }
 
-  async proceedToCheckout(): Promise<void> {
+  async proceedToCheckout(): Promise<number> {
     await this.applyCheckoutCoupon();
+    const cartTotal = await this.orderTotal();
 
     const checkoutButton = this.byTestId('checkout-button')
       .or(this.page.getByRole('link', { name: /proceed to checkout/i }))
@@ -35,6 +36,25 @@ export class CartPage extends BasePage {
     if (!reachedCheckout && !/\/secure-checkout(?:[/?#]|$)/.test(this.page.url())) {
       await this.page.goto('/secure-checkout');
     }
+
+    return cartTotal;
+  }
+
+  async orderTotal(): Promise<number> {
+    const totalLocator = await this.firstVisibleCartLocator([
+      this.byTestId('cart-total'),
+      this.byTestId('order-total'),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Order Total") and contains(normalize-space(), "$")]').last(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Cart Total") and contains(normalize-space(), "$")]').last(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Total") and contains(normalize-space(), "$")]').last(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Order Total")]/following::*[contains(normalize-space(), "$")][1]').first(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Cart Total")]/following::*[contains(normalize-space(), "$")][1]').first(),
+      this.page.locator('xpath=//*[contains(normalize-space(), "Total")]/following::*[contains(normalize-space(), "$")][1]').first()
+    ]);
+
+    await expect(totalLocator).toBeVisible({ timeout: 10000 });
+
+    return this.parseCurrencyValue(await totalLocator.innerText());
   }
 
   private async applyCheckoutCoupon(): Promise<void> {
@@ -57,5 +77,26 @@ export class CartPage extends BasePage {
     await applyButton.click({ force: true });
 
     await expect(this.page.getByText(this.checkoutCouponCode).first()).toBeVisible({ timeout: 10000 });
+  }
+
+  private async firstVisibleCartLocator(locators: ReturnType<Page['locator']>[]): Promise<ReturnType<Page['locator']>> {
+    for (const locator of locators) {
+      if (await locator.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        return locator;
+      }
+    }
+
+    return locators[0];
+  }
+
+  private parseCurrencyValue(text: string): number {
+    const currencyMatch = text.match(/(?:\border\s+total\b|\bcart\s+total\b|\btotal\b)\s*:?\s*\$?\s*([0-9,]+(?:\.[0-9]{2})?)/i)
+      ?? text.match(/\$?\s*([0-9,]+(?:\.[0-9]{2})?)/);
+
+    if (!currencyMatch) {
+      throw new Error(`Unable to parse cart total from text: "${text}"`);
+    }
+
+    return Number(currencyMatch[1].replace(/,/g, ''));
   }
 }

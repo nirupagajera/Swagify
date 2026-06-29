@@ -12,10 +12,11 @@ export function getTestEnvironment(): TestEnvironment {
 
 export function getEnvironmentConfig(): EnvironmentConfig {
   const env = getTestEnvironment();
+  const productionBaseUrl = process.env.PRODUCTION_BASE_URL?.trim();
   const websiteAccessPassword = process.env.WEBSITE_ACCESS_PASSWORD?.trim();
   const config: EnvironmentConfig = {
     name: env,
-    baseURL: process.env.PRODUCTION_BASE_URL ?? 'https://www.swagify.com/',
+    baseURL: productionBaseUrl || 'https://www.swagify.com/',
     websiteAccessPassword:
       websiteAccessPassword && websiteAccessPassword !== 'replace-me' ? websiteAccessPassword : undefined
   };

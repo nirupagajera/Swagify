@@ -14,9 +14,11 @@ test.describe('Checkout', () => {
     loginPage,
     productsPage,
     cartPage,
-    checkoutPage
+    checkoutPage,
+    dashboardPage
   }) => {
-    await loginAndProceedToCheckout({ loginPage, productsPage, cartPage });
+    const cartTotal = await loginAndProceedToCheckout({ loginPage, productsPage, cartPage });
+    await expect(checkoutPage.orderTotal()).resolves.toBe(cartTotal);
 
     await checkoutPage.fillShippingAddress(productionShippingAddress);
     await checkoutPage.completeCheckoutOptions();
@@ -26,6 +28,9 @@ test.describe('Checkout', () => {
     const orderId = await checkoutPage.orderId();
     expect(orderId).toMatch(/\S+/);
     console.log(`Order ID: ${orderId}`);
+    await dashboardPage.goto();
+    await dashboardPage.openOrder(orderId);
+    await dashboardPage.expectOrderDetail(orderId, productData.smokeProductSearchTerm);
   });
 
   test('registered customer cannot checkout with invalid data and sees validation @production', async ({
@@ -41,6 +46,24 @@ test.describe('Checkout', () => {
     await checkoutPage.placeOrder();
     await checkoutPage.expectCheckoutValidation(/phone number is required/i);
   });
+
+  test('guest customer can place order with valid data @production', async ({
+    productsPage,
+    cartPage,
+    checkoutPage
+  }) => {
+    const cartTotal = await shopAndProceedToCheckout({ productsPage, cartPage });
+    await expect(checkoutPage.orderTotal()).resolves.toBe(cartTotal);
+
+    await checkoutPage.fillShippingAddress(productionShippingAddress);
+    await checkoutPage.completeCheckoutOptions();
+    await checkoutPage.placeOrder();
+    await checkoutPage.expectOrderConfirmation();
+
+    const orderId = await checkoutPage.orderId();
+    expect(orderId).toMatch(/\S+/);
+    console.log(`Guest Order ID: ${orderId}`);
+  });
 });
 
 async function loginAndProceedToCheckout({
@@ -51,12 +74,23 @@ async function loginAndProceedToCheckout({
   loginPage: LoginPage;
   productsPage: ProductsPage;
   cartPage: CartPage;
-}): Promise<void> {
+}): Promise<number> {
   await loginPage.goto();
   await loginPage.login(customerAccount());
+  return shopAndProceedToCheckout({ productsPage, cartPage });
+}
+
+async function shopAndProceedToCheckout({
+  productsPage,
+  cartPage
+}: {
+  productsPage: ProductsPage;
+  cartPage: CartPage;
+}): Promise<number> {
+  await productsPage.goto();
   await productsPage.searchAndOpenFirstProduct(productData.smokeProductSearchTerm);
   await productsPage.addProductToCart();
   await productsPage.openCart();
   await cartPage.expectProductInCart();
-  await cartPage.proceedToCheckout();
+  return cartPage.proceedToCheckout();
 }
